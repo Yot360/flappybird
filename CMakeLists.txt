@@ -32,4 +32,5 @@ add_custom_command(
         ${SOURCE_DIR}/Assets ${BUILD_DIR}/Assets
 )
 
+# remove mingw32 when compiling for linux
 target_link_libraries(FlappyBird SDL2::SDL2main SDL2::SDL2 SDL2_ttf::SDL2_ttf mingw32)
