@@ -9,6 +9,7 @@ bool ConfigHelper::Initialize() {
     // Load JSON and parse its info
     std::ifstream f("Assets/config.json");
     data = json::parse(f);
+    return true;
 }
 
 int ConfigHelper::GetBestScore() {
