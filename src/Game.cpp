@@ -20,6 +20,14 @@ bool Game::Initialize()
         return false;
     }
 
+    //Initialize PNG loading
+    int imgFlags = IMG_INIT_PNG;
+    if( !( IMG_Init( imgFlags ) & imgFlags ) )
+    {
+        printf( "SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError() );
+        return false;
+    }
+
     //Create window
     Uint32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN;
     window = SDL_CreateWindow("Flappy Bird", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, flags);
@@ -37,6 +45,15 @@ bool Game::Initialize()
     // Set the scale mode to preserve aspect ratio
     SDL_RenderSetScale(renderer, (float)SDL_GetWindowSurface(window)->w / SCREEN_WIDTH, (float)SDL_GetWindowSurface(window)->h / SCREEN_HEIGHT);
 
+    // Load config
+    ConfigHelper::getInstance().Initialize();
+
+    // Load config data
+    bestScore = ConfigHelper::getInstance().GetBestScore();
+    PIPE_GAP = ConfigHelper::getInstance().GetPipeGap();
+    PIPE_WIDTH = ConfigHelper::getInstance().GetPipeWidth();
+    PIPE_SPEED = ConfigHelper::getInstance().GetPipeSpeed();
+
     // Initialize inputs
     InputHandler::getInstance().Initialize();
 
@@ -48,6 +65,18 @@ bool Game::Initialize()
         std::cout << TTF_GetError() << std::endl;
     }
 
+    // Load ground/background/pipes textures
+    bgSurface = IMG_Load("Assets/background.png");
+    bg = SDL_CreateTextureFromSurface(renderer, bgSurface);
+    SDL_FreeSurface(bgSurface);
+    groundSurface = IMG_Load("Assets/ground.png");
+    ground = SDL_CreateTextureFromSurface(renderer, groundSurface);
+    SDL_FreeSurface(groundSurface);
+    pipeSurface = IMG_Load("Assets/pipe.png");
+    pipeT = SDL_CreateTextureFromSurface(renderer, pipeSurface);
+    SDL_FreeSurface(pipeSurface);
+
+    // randomness for pipes
     srand((unsigned) time(NULL));
 
     // Generate 10 pipes before
@@ -58,14 +87,7 @@ bool Game::Initialize()
         pipes.emplace_back(SCREEN_HEIGHT, PIPE_GAP, PIPE_WIDTH, x);
     }
 
-    // Load score
-    scoreManager = new ScoreManager("Assets/score.txt");
-
-    if (scoreManager->loadScore(bestScore)) {
-        std::cout << "High score: " << bestScore << std::endl;
-    } else {
-        std::cout << "Failed to load high score" << std::endl;
-    }
+    bird.LoadFromJson();
 
     return true;
 }
@@ -80,7 +102,11 @@ void Game::Update()
 
     }
 
-    if (bird.GetRect()->y > SCREEN_HEIGHT - bird.GetRect()->h) {
+    if (bird.GetRect()->y > SCREEN_HEIGHT - bird.GetRect()->h - 102) {
+        bird.Dead();
+    }
+
+    if (bird.GetRect()->y < -100) {
         bird.Dead();
     }
 
@@ -98,27 +124,25 @@ void Game::Update()
         }
     }
 
-
-
     if (!bird.IsDead()) {
         // Move the pipes across the screen
-        for (int i = 0; i < pipes.size(); i++) {
-            pipes[i].move(PIPE_SPEED);
+        for (auto & pipe : pipes) {
+            pipe.move(PIPE_SPEED);
 
             // Check collisions with pipes
             if (!bird.IsGodMode())
             {
-                if (SDL_HasIntersection(pipes[i].getTopRect(), bird.GetRect())) {
+                if (SDL_HasIntersection(pipe.getTopRect(), bird.GetRect())) {
                     bird.Dead();
                 }
-                if (SDL_HasIntersection(pipes[i].getBottomRect(), bird.GetRect())) {
+                if (SDL_HasIntersection(pipe.getBottomRect(), bird.GetRect())) {
                     bird.Dead();
                 }
             }
 
             // Check if bird has passed pipe
-            if (!pipes[i].isPassed() && bird.GetRect()->x > pipes[i].getTopRect()->x + PIPE_WIDTH) {
-                pipes[i].setPassed(true);
+            if (!pipe.isPassed() && bird.GetRect()->x > pipe.getTopRect()->x + PIPE_WIDTH) {
+                pipe.setPassed(true);
                 score += 1; // Add one point to score
             }
 
@@ -165,16 +189,19 @@ void Game::Draw()
 
     SDL_Color White = { 255, 255, 255 };
 
-    // Render the pipes
-    SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+    // Draw background
+    SDL_RenderCopy(renderer, bg, nullptr, nullptr);
 
     // Render the pipes
     SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-    for (int i = 0; i < pipes.size(); i++) {
-        SDL_RenderFillRect(renderer, pipes[i].getTopRect());
-        SDL_RenderFillRect(renderer, pipes[i].getBottomRect());
+    for (auto & pipe : pipes) {
+        SDL_RenderCopyEx(renderer, pipeT, nullptr, pipe.getTopRect(), 0.0, nullptr, SDL_FLIP_VERTICAL);
+        SDL_RenderCopyEx(renderer, pipeT, nullptr, pipe.getBottomRect(), 0.0, nullptr, SDL_FLIP_NONE);
     }
 
+    // Draw ground
+    SDL_Rect groundRect = { 0, SCREEN_HEIGHT - 100, 168*3, 56*3 };
+    SDL_RenderCopy(renderer, ground, nullptr, &groundRect);
 
     bird.Draw(renderer);
 
@@ -204,7 +231,8 @@ void Game::Clean()
 {
 
     // Save best score
-    scoreManager->saveScore(bestScore);
+    ConfigHelper::getInstance().SetBestScore(bestScore);
+    ConfigHelper::getInstance().SaveJson();
 
     //Destroy window/renderer
     SDL_DestroyRenderer(renderer);

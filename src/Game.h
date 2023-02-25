@@ -8,11 +8,11 @@
 #include <iostream>
 #include <SDL.h>
 #include <SDL_ttf.h>
+#include <SDL_image.h>
 #include <vector>
 #include "InputHandler.h"
 #include "TTFManager.h"
-#include "ScoreManager.h"
-
+#include "ConfigHelper.h"
 #include "Bird.h"
 #include "Pipe.h"
 
@@ -48,19 +48,23 @@ private:
 
     SDL_Event event{};
     TTF_Font* font{};
-    ScoreManager* scoreManager = nullptr;
 
     Bird bird;
 
     int frameCount = 0;
 
-    const int PIPE_GAP = 200;
-    const int PIPE_WIDTH = 60;
-    const int PIPE_SPEED = 2;
+    int PIPE_GAP;
+    int PIPE_WIDTH;
+    int PIPE_SPEED;
+
+    float groundSpeed = 100.0;
 
     bool isScored = false;
     int score = 0;
     int bestScore = 0;
+
+    SDL_Surface* bgSurface, *groundSurface, *pipeSurface;
+    SDL_Texture* bg, *ground, *pipeT;
 
     std::vector<Pipe> pipes;
 
